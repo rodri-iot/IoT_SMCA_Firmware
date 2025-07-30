@@ -1,0 +1,66 @@
+# ============================
+# 📦 Archivos de PlatformIO
+# ============================
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+
+# ============================
+# 🔧 Archivos de ESP-IDF
+# ============================
+build/
+sdkconfig
+sdkconfig.old
+*.elf
+*.bin
+*.map
+*.d
+*.a
+*.pyc
+*.cmake
+*.project
+*.cproject
+*.gdbinit
+*.log
+
+# ============================
+# 🔐 Certificados y claves
+# ============================
+certs/
+*.crt
+*.key
+*.pem
+*.pfx
+*.der
+*.cer
+
+# ============================
+# ⚙️ Configuraciones sensibles
+# ============================
+*.env
+.env.*
+config.c
+credentials.h
+
+# ============================
+# 💻 Archivos de sistema
+# ============================
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# ============================
+# 🧪 Archivos de prueba
+# ============================
+*.test.*
+*.bak
+*.orig
+
+# ============================
+# 📁 Montajes SPIFFS/FAT
+# ============================
+spiffs_image/
+fatfs_image/
+partition_table/
