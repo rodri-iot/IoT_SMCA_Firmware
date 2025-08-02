@@ -1,15 +1,8 @@
 # ============================
-# 📦 Archivos de PlatformIO
-# ============================
-.pio/
-.pioenvs/
-.piolibdeps/
-.vscode/
-
-# ============================
 # 🔧 Archivos de ESP-IDF
 # ============================
 esp-idf/
+/Users/rodripinedo/DOCS/UBA_Master/Trabajo_Final-IoT/IoT_SMCA_Firmware/esp-idf/
 build/
 sdkconfig
 sdkconfig.old
