@@ -9,6 +9,7 @@
 # ============================
 # 🔧 Archivos de ESP-IDF
 # ============================
+esp-idf/
 build/
 sdkconfig
 sdkconfig.old
@@ -23,6 +24,7 @@ sdkconfig.old
 *.cproject
 *.gdbinit
 *.log
+__pycache__/
 
 # ============================
 # 🔐 Certificados y claves
