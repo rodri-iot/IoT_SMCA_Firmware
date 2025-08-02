@@ -50,6 +50,7 @@ credentials.h
 Thumbs.db
 .idea/
 *.swp
+.venv/
 
 # ============================
 # 🧪 Archivos de prueba
