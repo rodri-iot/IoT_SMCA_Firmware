@@ -8,3 +8,4 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(esp32_heltec_v3)
 
 spiffs_create_partition_image(spiffs spiffs IMAGE_DIRECTORY spiffs)
+# spiffs_create_partition_image(spiffs ../esp32_heltec_v3/spiffs FLASH_IN_PROJECT)
