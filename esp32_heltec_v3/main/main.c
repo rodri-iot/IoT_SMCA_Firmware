@@ -3,8 +3,12 @@
 #include "freertos/task.h"
 #include "wifi_manager.h"
 #include "wifi_credentials.h"
-#include "mqtt_client.h"
+#include "mqtt_client.h" 
+#include "smca_mqtt_client.h"
+#include "spiffs_manager.h"
 #include "esp_log.h"
+#include "esp_err.h"
+#include "esp_event.h"
 
 void app_main(void) {
     ESP_LOGI("MAIN", "🚀 Iniciando SMCA - Heltec V3");
@@ -21,17 +25,4 @@ void app_main(void) {
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
-}
-
-void read_certificates() {
-    FILE *f = fopen("/spiffs/client_cert.pem", "r");
-    if (f == NULL) {
-        ESP_LOGE("CERT", "Failed to open client_cert.pem");
-        return;
-    }
-    char line[256];
-    while (fgets(line, sizeof(line), f)) {
-        ESP_LOGI("CERT", "%s", line);
-    }
-    fclose(f);
 }

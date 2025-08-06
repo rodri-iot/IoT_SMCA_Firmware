@@ -45,6 +45,9 @@ Thumbs.db
 .idea/
 *.swp
 .venv/
+credentials/wifi_credentials.c
+credentials/wifi_credentials.h
+
 
 # ============================
 # 🧪 Archivos de prueba
