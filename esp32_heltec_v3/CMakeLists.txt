@@ -7,5 +7,6 @@ cmake_minimum_required(VERSION 3.16)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(esp32_heltec_v3)
 
-spiffs_create_partition_image(spiffs spiffs IMAGE_DIRECTORY spiffs)
+spiffs_create_partition_image(spiffs spiffs FLASH_IN_PROJECT)
+# spiffs_create_partition_image(spiffs spiffs IMAGE_DIRECTORY spiffs)
 # spiffs_create_partition_image(spiffs ../esp32_heltec_v3/spiffs FLASH_IN_PROJECT)

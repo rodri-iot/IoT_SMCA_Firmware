@@ -3,8 +3,8 @@
 
 #include "esp_err.h"
 
-extern char *ca_cert;
-extern char *client_cert;
+extern char *ca_crt;
+extern char *client_crt;
 extern char *client_key;
 
 

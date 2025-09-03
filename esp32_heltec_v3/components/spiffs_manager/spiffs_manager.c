@@ -8,8 +8,8 @@
 
 static const char *TAG = "SPIFFS";
 
-char *ca_cert = NULL;
-char *client_cert = NULL;
+char *ca_crt = NULL;
+char *client_crt = NULL;
 char *client_key = NULL;
 
 void spiffs_mount() {
@@ -64,19 +64,48 @@ esp_err_t spiffs_read_file(const char *path, char **buffer) {
 }
 
 void read_certificates() {
-    if (spiffs_read_file("/spiffs/ca_cert.pem", &ca_cert) != ESP_OK) {
-        ESP_LOGE(TAG, "❌ Error al leer ca_cert.pem");
+    esp_err_t ret;
+    ret = spiffs_read_file("/spiffs/ca_crt.pem", &ca_crt);
+    if (ret != ESP_OK || !ca_crt) {
+        ESP_LOGE(TAG, "❌ Error al leer ca_crt.pem: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "✅ ca_crt.pem cargado (%d bytes)", strlen(ca_crt));
     }
-    if (spiffs_read_file("/spiffs/client_cert.pem", &client_cert) != ESP_OK) {
-        ESP_LOGE(TAG, "❌ Error al leer client_cert.pem");
+    ret = spiffs_read_file("/spiffs/client_crt.pem", &client_crt);
+    if (ret != ESP_OK || !client_crt) {
+        ESP_LOGE(TAG, "❌ Error al leer client_crt.pem: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "✅ client_crt.pem cargado (%d bytes)", strlen(client_crt));
     }
-    if (spiffs_read_file("/spiffs/client_key.pem", &client_key) != ESP_OK) {
-        ESP_LOGE(TAG, "❌ Error al leer client_key.pem");
+    ret = spiffs_read_file("/spiffs/client_key.pem", &client_key);
+    if (ret != ESP_OK || !client_key) {
+        ESP_LOGE(TAG, "❌ Error al leer client_key.pem: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "✅ client_key.pem cargado (%d bytes)", strlen(client_key));
     }
-
-    if (ca_cert && client_cert && client_key) {
+    if (ca_crt && client_crt && client_key) {
         ESP_LOGI(TAG, "📄 Certificados cargados correctamente");
     } else {
         ESP_LOGE(TAG, "❌ Error al leer los certificados");
     }
 }
+
+/*
+void read_certificates() {
+    if (spiffs_read_file("/spiffs/ca_crt.pem", &ca_crt) != ESP_OK) {
+        ESP_LOGE(TAG, "❌ Error al leer ca_crt.pem");
+    }
+    if (spiffs_read_file("/spiffs/client_crt.pem", &client_crt) != ESP_OK) {
+        ESP_LOGE(TAG, "❌ Error al leer client_crt.pem");
+    }
+    if (spiffs_read_file("/spiffs/client_key.pem", &client_key) != ESP_OK) {
+        ESP_LOGE(TAG, "❌ Error al leer client_key.pem");
+    }
+
+    if (ca_crt && client_crt && client_key) {
+        ESP_LOGI(TAG, "📄 Certificados cargados correctamente");
+    } else {
+        ESP_LOGE(TAG, "❌ Error al leer los certificados");
+    }
+}
+*/
