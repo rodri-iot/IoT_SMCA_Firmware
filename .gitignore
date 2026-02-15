@@ -36,6 +36,7 @@ certs/
 .env.*
 config.c
 credentials.h
+esp32_heltec_v3/main/config.h
 
 # ============================
 # 💻 Archivos de sistema

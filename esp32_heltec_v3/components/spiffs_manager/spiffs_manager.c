@@ -55,57 +55,48 @@ esp_err_t spiffs_read_file(const char *path, char **buffer) {
         return ESP_ERR_NO_MEM;
     }
 
-    fread(*buffer, 1, size, f);
+    size_t read_size = fread(*buffer, 1, size, f);
+    if (read_size != size) {
+        ESP_LOGW(TAG, "⚠️ Leídos %d bytes de %d esperados en %s", (int)read_size, (int)size, path);
+    }
     (*buffer)[size] = '\0';  // Null-terminate
 
     fclose(f);
-    ESP_LOGI(TAG, "Read file %s (%d bytes)", path, (int)size);
+    ESP_LOGI(TAG, "✅ Archivo leído: %s (%d bytes)", path, (int)size);
     return ESP_OK;
 }
 
-void read_certificates() {
+void read_certificates(void) {
     esp_err_t ret;
-    ret = spiffs_read_file("/spiffs/ca_crt.pem", &ca_crt);
+    
+    // Leer certificado CA (formato .crt)
+    ret = spiffs_read_file("/spiffs/ca.crt", &ca_crt);
     if (ret != ESP_OK || !ca_crt) {
-        ESP_LOGE(TAG, "❌ Error al leer ca_crt.pem: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "❌ Error al leer ca.crt: %s", esp_err_to_name(ret));
     } else {
-        ESP_LOGI(TAG, "✅ ca_crt.pem cargado (%d bytes)", strlen(ca_crt));
+        ESP_LOGI(TAG, "✅ ca.crt cargado (%zu bytes)", strlen(ca_crt));
     }
-    ret = spiffs_read_file("/spiffs/client_crt.pem", &client_crt);
+    
+    // Leer certificado del cliente (formato .crt)
+    ret = spiffs_read_file("/spiffs/client.crt", &client_crt);
     if (ret != ESP_OK || !client_crt) {
-        ESP_LOGE(TAG, "❌ Error al leer client_crt.pem: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "❌ Error al leer client.crt: %s", esp_err_to_name(ret));
     } else {
-        ESP_LOGI(TAG, "✅ client_crt.pem cargado (%d bytes)", strlen(client_crt));
+        ESP_LOGI(TAG, "✅ client.crt cargado (%zu bytes)", strlen(client_crt));
     }
-    ret = spiffs_read_file("/spiffs/client_key.pem", &client_key);
+    
+    // Leer clave privada del cliente (formato .key)
+    ret = spiffs_read_file("/spiffs/client.key", &client_key);
     if (ret != ESP_OK || !client_key) {
-        ESP_LOGE(TAG, "❌ Error al leer client_key.pem: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "❌ Error al leer client.key: %s", esp_err_to_name(ret));
     } else {
-        ESP_LOGI(TAG, "✅ client_key.pem cargado (%d bytes)", strlen(client_key));
+        ESP_LOGI(TAG, "✅ client.key cargado (%zu bytes)", strlen(client_key));
     }
+    
+    // Verificar que todos los certificados se cargaron correctamente
     if (ca_crt && client_crt && client_key) {
-        ESP_LOGI(TAG, "📄 Certificados cargados correctamente");
+        ESP_LOGI(TAG, "📄 ✅ Todos los certificados cargados correctamente");
     } else {
-        ESP_LOGE(TAG, "❌ Error al leer los certificados");
+        ESP_LOGE(TAG, "❌ Faltan certificados. Verificar que existan en /spiffs/");
     }
 }
-
-/*
-void read_certificates() {
-    if (spiffs_read_file("/spiffs/ca_crt.pem", &ca_crt) != ESP_OK) {
-        ESP_LOGE(TAG, "❌ Error al leer ca_crt.pem");
-    }
-    if (spiffs_read_file("/spiffs/client_crt.pem", &client_crt) != ESP_OK) {
-        ESP_LOGE(TAG, "❌ Error al leer client_crt.pem");
-    }
-    if (spiffs_read_file("/spiffs/client_key.pem", &client_key) != ESP_OK) {
-        ESP_LOGE(TAG, "❌ Error al leer client_key.pem");
-    }
-
-    if (ca_crt && client_crt && client_key) {
-        ESP_LOGI(TAG, "📄 Certificados cargados correctamente");
-    } else {
-        ESP_LOGE(TAG, "❌ Error al leer los certificados");
-    }
-}
-*/

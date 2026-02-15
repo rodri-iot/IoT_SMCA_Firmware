@@ -1,0 +1,11 @@
+## IDF Component Manager Manifest File
+## See: https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-guides/tools/idf-component-manager.html
+
+dependencies:
+  ## Required IDF version
+  idf:
+    version: ">=5.1.0"
+  ## MQTT client component from Espressif
+  ## In ESP-IDF v5.1+, MQTT is managed via Component Manager
+  espressif/mqtt:
+    version: "^1.0.0"

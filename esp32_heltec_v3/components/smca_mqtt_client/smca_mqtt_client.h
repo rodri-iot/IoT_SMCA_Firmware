@@ -1,10 +1,8 @@
-#ifndef MQTT_CLIENT_H
-#define MQTT_CLIENT_H
+#ifndef SMCA_MQTT_CLIENT_H
+#define SMCA_MQTT_CLIENT_H
 
 #include "mqtt_client.h"
 
-extern esp_mqtt_client_handle_t client;
-
-esp_mqtt_client_handle_t mqtt_start(void);
+esp_mqtt_client_handle_t mqtt_start(const char *broker_uri, const char *client_id);
 
 #endif

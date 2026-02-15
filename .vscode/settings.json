@@ -1,5 +1,8 @@
 {
     "files.associations": {
         "stdio.h": "c"
-    }
+    },
+    "cmake.sourceDirectory": "/Users/rodripinedo/DOCS/UBA_Master/Trabajo_Final-IoT/V_2026/IoT_SMCA_Firmware/esp32_heltec_v3",
+    "idf.espIdfPath": "/Users/rodripinedo/DOCS/UBA_Master/Trabajo_Final-IoT/IoT_SMCA_Firmware/esp-idf",
+    "idf.toolsPath": "/Users/rodripinedo/.espressif"
 }

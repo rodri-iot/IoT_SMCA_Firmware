@@ -1,0 +1,74 @@
+/**
+ * @file config.h.example
+ * @brief Plantilla de configuración del nodo ESP32
+ *
+ * INSTRUCCIONES:
+ * 1. Copiar este archivo a config.h:  cp config.h.example config.h
+ * 2. Editar config.h con los valores reales del nodo
+ * 3. config.h está en .gitignore (no se versiona credenciales reales)
+ */
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ============================================
+// 🔧 CONFIGURACIÓN DEL NODO
+// ============================================
+
+// ID del sensor (debe coincidir con el registrado en la BD del sistema SMCA)
+#define SENSOR_ID "esp32-air-XXX"
+
+// ID del cliente MQTT (generalmente igual a SENSOR_ID)
+#define MQTT_CLIENT_ID "esp32-air-XXX"
+
+// URI del broker MQTT (ajustar IP/hostname según tu red)
+// Formato: mqtts://IP:PUERTO o mqtts://hostname:PUERTO
+#define MQTT_BROKER_URI "mqtts://192.168.1.X:8883"
+
+// Tópico MQTT para publicar lecturas
+#define MQTT_TOPIC "iot/aire/lectura"
+
+// Intervalo entre publicaciones MQTT (ms); 60000 = 1 min, 300000 = 5 min para bajo tráfico
+#define SEND_INTERVAL_MS 60000
+
+// ============================================
+// 🌐 CONFIGURACIÓN WIFI
+// ============================================
+#define WIFI_SSID "tu-red-wifi"
+#define WIFI_PASS "tu-password"
+
+// ============================================
+// 📁 CONFIGURACIÓN SPIFFS
+// ============================================
+// Los certificados deben estar en:
+// - /spiffs/ca.crt          (certificado CA del broker)
+// - /spiffs/client.crt      (certificado del cliente/nodo)
+// - /spiffs/client.key      (clave privada del cliente/nodo)
+
+// ============================================
+// ⏰ CONFIGURACIÓN SNTP
+// ============================================
+#define SNTP_SERVER "pool.ntp.org"
+// Zona horaria para logs locales del dispositivo (solo afecta logs, no timestamps MQTT)
+// Los timestamps enviados al backend son UTC (formato ISO 8601 con 'Z')
+// Opciones: "UTC0" (UTC), "ART3" (Argentina UTC-3), "EST5EDT" (US East UTC-5)
+// Recomendado: "UTC0" para consistencia con servidores AWS
+#define TIMEZONE "UTC0"  // UTC - Estándar para sistemas distribuidos (AWS US East)
+
+// ============================================
+// 📌 CONFIGURACIÓN HARDWARE (Sensores - Heltec V3)
+// ============================================
+#define I2C_SDA_GPIO    45   // J3 Pin 6
+#define I2C_SCL_GPIO    46   // J3 Pin 5
+#define I2C_PORT_NUM    0    // I2C_NUM_0
+#define USE_REAL_SCD40  1    // 1 = SCD40 real, 0 = simular co2/temp/hum
+
+// ============================================
+// 🔍 CONFIGURACIÓN DE LOGS
+// ============================================
+// Niveles: ESP_LOG_NONE, ESP_LOG_ERROR, ESP_LOG_WARN, ESP_LOG_INFO, ESP_LOG_DEBUG, ESP_LOG_VERBOSE
+#define LOG_LEVEL_MQTT ESP_LOG_INFO
+#define LOG_LEVEL_TLS ESP_LOG_INFO
+#define LOG_LEVEL_WIFI ESP_LOG_INFO
+
+#endif // CONFIG_H
