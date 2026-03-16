@@ -15,6 +15,15 @@
 #if USE_REAL_SCD40
 #include "sensor_scd40.h"
 #endif
+#if USE_REAL_SGP30
+#include "sensor_sgp30.h"
+#endif
+#if USE_REAL_PMS7003
+#include "sensor_pms7003.h"
+#endif
+#if USE_REAL_CJMCU
+#include "sensor_cjmcu4541.h"
+#endif
 
 static void sync_time_init_and_wait(void);
 
@@ -33,24 +42,51 @@ void app_main(void) {
     spiffs_mount();
     read_certificates();
 
-#if USE_REAL_SCD40
-    // 1b. Inicializar I2C y SCD40 (Fase 1 - sensores reales)
+#if (USE_REAL_SCD40 || USE_REAL_SGP30 || USE_REAL_CJMCU)
+    // 1b. Inicializar I2C (bus compartido por SCD40, SGP30, CJMCU-4541)
     ESP_LOGI("MAIN", "🔌 Inicializando I2C (SDA=%d, SCL=%d)...", I2C_SDA_GPIO, I2C_SCL_GPIO);
     esp_err_t err = i2c_bus_init(I2C_SDA_GPIO, I2C_SCL_GPIO, (i2c_port_t)I2C_PORT_NUM);
     if (err != ESP_OK) {
         ESP_LOGE("MAIN", "❌ Fallo I2C: %s", esp_err_to_name(err));
-    } else if (scd40_init() != ESP_OK) {
-        ESP_LOGW("MAIN", "⚠️ SCD40 no detectado; se usarán valores simulados para CO2/temp/hum");
     } else {
-        (void)scd40_stop_periodic_measurement();
-        vTaskDelay(pdMS_TO_TICKS(500));
-        vTaskDelay(pdMS_TO_TICKS(100));
-        esp_err_t start_ret = scd40_start_periodic_measurement();
-        if (start_ret == ESP_OK) {
-            ESP_LOGI("MAIN", "✅ SCD40 listo (primera lectura en ~5 s)");
+#if USE_REAL_SCD40
+        if (scd40_init() != ESP_OK) {
+            ESP_LOGW("MAIN", "⚠️ SCD40 no detectado; se usarán valores simulados para CO2/temp/hum");
         } else {
-            ESP_LOGW("MAIN", "SCD40: no se pudo iniciar medición periódica: %s", esp_err_to_name(start_ret));
+            (void)scd40_stop_periodic_measurement();
+            vTaskDelay(pdMS_TO_TICKS(800));  /* 800 ms tras stop (datasheet: hasta 500 ms; margen para I2C) */
+            esp_err_t start_ret = scd40_start_periodic_measurement();
+            if (start_ret == ESP_OK) {
+                ESP_LOGI("MAIN", "✅ SCD40 listo (primera lectura en ~5 s)");
+                vTaskDelay(pdMS_TO_TICKS(5500));  /* Esperar primera medición antes de seguir con WiFi/etc. */
+            } else {
+                ESP_LOGE("MAIN", "SCD40: no se pudo iniciar medición periódica; no habrá lecturas CO2/temp/hum hasta reiniciar o corregir I2C/alimentación: %s", esp_err_to_name(start_ret));
+            }
         }
+#endif
+#if USE_REAL_SGP30
+        if (sgp30_init() != ESP_OK) {
+            ESP_LOGW("MAIN", "⚠️ SGP30 no detectado; se usarán valores simulados para TVOC/eCO2");
+        } else {
+            ESP_LOGI("MAIN", "✅ SGP30 listo");
+        }
+#endif
+#if USE_REAL_CJMCU
+        if (cjmcu4541_init() != ESP_OK) {
+            ESP_LOGW("MAIN", "⚠️ CJMCU-4541 no detectado; se usarán valores simulados para CO/NO2/NH3");
+        } else {
+            ESP_LOGI("MAIN", "✅ CJMCU-4541 listo (primera lectura = baseline)");
+        }
+#endif
+    }
+#endif
+
+#if USE_REAL_PMS7003
+    ESP_LOGI("MAIN", "🌫️ Inicializando PMS7003 (TX=%d, RX=%d)...", PMS7003_TX_GPIO, PMS7003_RX_GPIO);
+    if (pms7003_init(PMS7003_TX_GPIO, PMS7003_RX_GPIO, PMS7003_UART_NUM) != ESP_OK) {
+        ESP_LOGW("MAIN", "⚠️ PMS7003 no inicializado; se usarán valores simulados para PM");
+    } else {
+        ESP_LOGI("MAIN", "✅ PMS7003 listo");
     }
 #endif
 
@@ -95,11 +131,9 @@ static void sync_time_init_and_wait(void) {
     setenv("TZ", TIMEZONE, 1);
     tzset();
 
-    // Configurar SNTP con múltiples servidores para mayor confiabilidad
-    // Usamos 2 servidores (máximo recomendado para evitar problemas)
-    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(2,
-        ESP_SNTP_SERVER_LIST("pool.ntp.org", "time.nist.gov")
-    );
+    // Configurar SNTP con un solo servidor (compatible con CONFIG_LWIP_SNTP_MAX_SERVERS=1).
+    // SNTP_SERVER está definido en config.h (ej. pool.ntp.org). Válido para local y AWS.
+    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(SNTP_SERVER);
     config.sync_cb = NULL;  // Sin callback, verificaremos manualmente
     
     esp_err_t ret = esp_netif_sntp_init(&config);

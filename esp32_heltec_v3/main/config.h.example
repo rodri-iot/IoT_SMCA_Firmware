@@ -21,8 +21,10 @@
 // ID del cliente MQTT (generalmente igual a SENSOR_ID)
 #define MQTT_CLIENT_ID "esp32-air-XXX"
 
-// URI del broker MQTT (ajustar IP/hostname según tu red)
-// Formato: mqtts://IP:PUERTO o mqtts://hostname:PUERTO
+// URI del broker MQTT. Preferir hostname para mismo firmware en local y AWS.
+// Local: mqtts://192.168.1.X:8883 o mqtts://mqtt.smca.local:8883
+// AWS (EC2/HiveMQ): mqtts://mqtt.tudominio.com:8883
+// AWS IoT Core: mqtts://xxxxx-ats.iot.REGION.amazonaws.com:8883
 #define MQTT_BROKER_URI "mqtts://192.168.1.X:8883"
 
 // Tópico MQTT para publicar lecturas
@@ -58,10 +60,24 @@
 // ============================================
 // 📌 CONFIGURACIÓN HARDWARE (Sensores - Heltec V3)
 // ============================================
-#define I2C_SDA_GPIO    45   // J3 Pin 6
-#define I2C_SCL_GPIO    46   // J3 Pin 5
+// GPIO por sensor: I2C compartido (SCD40, SGP30, CJMCU-4541) y UART PMS7003 (futuro).
+// 1 = sensor real, 0 = datos simulados (permite probar uno por uno).
+
+// --- Bus I2C compartido ---
+#define I2C_SDA_GPIO    45   // J3 Pin 6 - SDA
+#define I2C_SCL_GPIO    46   // J3 Pin 5 - SCL
 #define I2C_PORT_NUM    0    // I2C_NUM_0
-#define USE_REAL_SCD40  1    // 1 = SCD40 real, 0 = simular co2/temp/hum
+
+// --- UART PMS7003 (reservado) ---
+#define PMS7003_TX_GPIO   4
+#define PMS7003_RX_GPIO   5
+#define PMS7003_UART_NUM  1  // UART_NUM_1 cuando se implemente driver PMS7003
+
+// --- Sensores reales (1) o simulados (0) ---
+#define USE_REAL_SCD40    0  // SCD40: CO2, temp, hum
+#define USE_REAL_SGP30    0  // SGP30: TVOC, eCO2
+#define USE_REAL_CJMCU    0  // CJMCU-4541: NO2, CO (futuro)
+#define USE_REAL_PMS7003  0  // PMS7003: PM1, PM2.5, PM10 (futuro)
 
 // ============================================
 // 🔍 CONFIGURACIÓN DE LOGS

@@ -63,3 +63,10 @@ credentials/wifi_credentials.h
 spiffs_image/
 fatfs_image/
 partition_table/
+
+# ============================
+# 📄 Documentación y Markdown
+# ============================
+*.md
+!README.md
+docs/

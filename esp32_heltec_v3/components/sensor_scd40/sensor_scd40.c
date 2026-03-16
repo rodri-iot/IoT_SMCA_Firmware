@@ -111,7 +111,7 @@ esp_err_t scd40_is_connected(void) {
 
 esp_err_t scd40_start_periodic_measurement(void) {
     const int max_attempts = 3;
-    const int delay_ms = 80;
+    const int delay_ms = 120;  /* Margen para I2C lento o bus cargado */
     esp_err_t ret;
     for (int attempt = 0; attempt < max_attempts; attempt++) {
         ret = scd40_write_cmd(SCD40_CMD_START);
@@ -130,13 +130,23 @@ esp_err_t scd40_start_periodic_measurement(void) {
 esp_err_t scd40_read_measurement(float *co2_ppm, float *temp_c, float *rh_pct) {
     uint8_t buf[9];
     esp_err_t ret = scd40_cmd_read_response(SCD40_CMD_DATARDY, buf, 1);
-    if (ret != ESP_OK) return ret;
-    if ((buf[1] & 0x01) == 0) {
-        /* No hay datos nuevos (data ready en LSB del valor 16-bit) */
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    /* DATA_READY_STATUS: los 11 bits menos significativos indican si hay datos nuevos.
+     * Ver datasheet SCD4x: status & 0x07FF != 0 => medición lista. */
+    uint16_t status = ((uint16_t)buf[0] << 8) | buf[1];
+    ESP_LOGD(TAG, "DATA_READY status=0x%04X", status);
+    if ((status & 0x07FFu) == 0) {
+        /* No hay datos nuevos aún. */
         return ESP_ERR_NOT_FOUND;
     }
+
     ret = scd40_cmd_read_response(SCD40_CMD_READ, buf, 3);
-    if (ret != ESP_OK) return ret;
+    if (ret != ESP_OK) {
+        return ret;
+    }
 
     uint16_t raw_co2 = (uint16_t)buf[0] << 8 | buf[1];
     uint16_t raw_t   = (uint16_t)buf[3] << 8 | buf[4];
