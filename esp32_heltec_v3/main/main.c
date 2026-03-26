@@ -42,8 +42,8 @@ void app_main(void) {
     spiffs_mount();
     read_certificates();
 
-#if (USE_REAL_SCD40 || USE_REAL_SGP30 || USE_REAL_CJMCU)
-    // 1b. Inicializar I2C (bus compartido por SCD40, SGP30, CJMCU-4541)
+#if (USE_REAL_SCD40 || USE_REAL_SGP30)
+    // 1b. Inicializar I2C (bus compartido por SCD40, SGP30)
     ESP_LOGI("MAIN", "🔌 Inicializando I2C (SDA=%d, SCL=%d)...", I2C_SDA_GPIO, I2C_SCL_GPIO);
     esp_err_t err = i2c_bus_init(I2C_SDA_GPIO, I2C_SCL_GPIO, (i2c_port_t)I2C_PORT_NUM);
     if (err != ESP_OK) {
@@ -54,13 +54,13 @@ void app_main(void) {
             ESP_LOGW("MAIN", "⚠️ SCD40 no detectado; se usarán valores simulados para CO2/temp/hum");
         } else {
             (void)scd40_stop_periodic_measurement();
-            vTaskDelay(pdMS_TO_TICKS(800));  /* 800 ms tras stop (datasheet: hasta 500 ms; margen para I2C) */
+            vTaskDelay(pdMS_TO_TICKS(800));
             esp_err_t start_ret = scd40_start_periodic_measurement();
             if (start_ret == ESP_OK) {
                 ESP_LOGI("MAIN", "✅ SCD40 listo (primera lectura en ~5 s)");
-                vTaskDelay(pdMS_TO_TICKS(5500));  /* Esperar primera medición antes de seguir con WiFi/etc. */
+                vTaskDelay(pdMS_TO_TICKS(5500));
             } else {
-                ESP_LOGE("MAIN", "SCD40: no se pudo iniciar medición periódica; no habrá lecturas CO2/temp/hum hasta reiniciar o corregir I2C/alimentación: %s", esp_err_to_name(start_ret));
+                ESP_LOGE("MAIN", "SCD40: no se pudo iniciar medición periódica: %s", esp_err_to_name(start_ret));
             }
         }
 #endif
@@ -68,16 +68,20 @@ void app_main(void) {
         if (sgp30_init() != ESP_OK) {
             ESP_LOGW("MAIN", "⚠️ SGP30 no detectado; se usarán valores simulados para TVOC/eCO2");
         } else {
-            ESP_LOGI("MAIN", "✅ SGP30 listo");
+            sgp30_start_polling();
+            ESP_LOGI("MAIN", "✅ SGP30 listo (polling 1s activo)");
         }
 #endif
+    }
+#endif
+
 #if USE_REAL_CJMCU
-        if (cjmcu4541_init() != ESP_OK) {
-            ESP_LOGW("MAIN", "⚠️ CJMCU-4541 no detectado; se usarán valores simulados para CO/NO2/NH3");
-        } else {
-            ESP_LOGI("MAIN", "✅ CJMCU-4541 listo (primera lectura = baseline)");
-        }
-#endif
+    // 1c. Inicializar CJMCU-4541 (ADC analogico, independiente del bus I2C)
+    ESP_LOGI("MAIN", "🔌 Inicializando CJMCU-4541 (RED=GPIO%d, NOX=GPIO%d)...", CJMCU_RED_GPIO, CJMCU_NOX_GPIO);
+    if (cjmcu4541_init() != ESP_OK) {
+        ESP_LOGW("MAIN", "⚠️ CJMCU-4541 no inicializado; se usarán valores simulados para CO/NO2/NH3");
+    } else {
+        ESP_LOGI("MAIN", "✅ CJMCU-4541 listo (primera lectura = baseline, precalentar ~3 min)");
     }
 #endif
 

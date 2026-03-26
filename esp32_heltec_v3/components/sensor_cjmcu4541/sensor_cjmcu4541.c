@@ -1,63 +1,37 @@
 /**
  * @file sensor_cjmcu4541.c
- * @brief Driver CJMCU-4541 / MiCS-4514 - I2C, NO2/CO/NH3 (fórmulas DFRobot_MICS)
+ * @brief Driver CJMCU-4541 / MiCS-4514 - ADC analogico, NO2/CO/NH3
+ *
+ * La placa CJMCU-4541 (version analogica) expone pines RED y NOX con voltajes
+ * proporcionales a la resistencia de cada elemento sensor. Se usa el ADC1 del
+ * ESP32-S3 para leer los voltajes y las formulas DFRobot_MICS para convertir
+ * el ratio Rs/R0 a concentraciones en ppm.
  */
 
 #include "sensor_cjmcu4541.h"
-#include "i2c_bus.h"
+#include "config.h"
 #include "esp_log.h"
-#include "driver/i2c.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdbool.h>
-#include <string.h>
 
 static const char *TAG = "CJMCU4541";
 
-/* Dirección I2C: 0x75 (A0=0,A1=0) a 0x78 (A0=1,A1=1). Ajustar según jumpers del módulo. */
-#define CJMCU4541_I2C_ADDR        0x75u
-#define CJMCU4541_REG_OX_RED_PWR  0x04u  /* Lectura 6 bytes: ox_hi,ox_lo, red_hi,red_lo, pwr_hi,pwr_lo */
-#define CJMCU4541_REG_POWER_MODE  0x0au
-#define CJMCU4541_WAKE_UP         0x01u
-#define CJMCU4541_SLEEP           0x00u
+#define VCC_MV  3300
 
-/* La primera lectura se usa como baseline (R0). Para mejor precisión, precalentar
- * el sensor ~3 min en aire limpio antes de considerar las lecturas representativas. */
-static uint32_t s_r0_ox = 0;
-static uint32_t s_r0_red = 0;
+static adc_oneshot_unit_handle_t s_adc_handle = NULL;
+static adc_cali_handle_t s_cali_handle = NULL;
+
+static adc_channel_t s_red_channel;
+static adc_channel_t s_nox_channel;
+
+static float s_r0_factor_red = 0.0f;
+static float s_r0_factor_nox = 0.0f;
 static bool s_calibrated = false;
 
-static esp_err_t cjmcu4541_write_reg(uint8_t reg, uint8_t value) {
-    i2c_port_t port = i2c_bus_get_port();
-    uint8_t buf[] = { reg, value };
-    i2c_cmd_handle_t h = i2c_cmd_link_create();
-    if (h == NULL) return ESP_ERR_NO_MEM;
-    i2c_master_start(h);
-    i2c_master_write_byte(h, (CJMCU4541_I2C_ADDR << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write(h, buf, sizeof(buf), true);
-    i2c_master_stop(h);
-    esp_err_t ret = i2c_master_cmd_begin(port, h, pdMS_TO_TICKS(100));
-    i2c_cmd_link_delete(h);
-    return ret;
-}
-
-static esp_err_t cjmcu4541_read_reg(uint8_t reg, uint8_t *data, size_t len) {
-    i2c_port_t port = i2c_bus_get_port();
-    i2c_cmd_handle_t h = i2c_cmd_link_create();
-    if (h == NULL) return ESP_ERR_NO_MEM;
-    i2c_master_start(h);
-    i2c_master_write_byte(h, (CJMCU4541_I2C_ADDR << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write_byte(h, reg, true);
-    i2c_master_start(h);
-    i2c_master_write_byte(h, (CJMCU4541_I2C_ADDR << 1) | I2C_MASTER_READ, true);
-    i2c_master_read(h, data, len, I2C_MASTER_LAST_NACK);
-    i2c_master_stop(h);
-    esp_err_t ret = i2c_master_cmd_begin(port, h, pdMS_TO_TICKS(100));
-    i2c_cmd_link_delete(h);
-    return ret;
-}
-
-/* Fórmulas concentración a partir de RS/R0 (DFRobot_MICS). */
 static float get_no2_ppm(float rs_r0_ox) {
     if (rs_r0_ox < 1.1f) return 0.0f;
     float no2 = (rs_r0_ox - 0.045f) / 6.13f;
@@ -82,56 +56,131 @@ static float get_nh3_ppm(float rs_r0_red) {
     return nh3;
 }
 
+static esp_err_t gpio_to_adc_channel(int gpio, adc_channel_t *channel) {
+    /* ESP32-S3 ADC1: GPIO1=CH0, GPIO2=CH1, ... GPIO10=CH9 */
+    if (gpio < 1 || gpio > 10) return ESP_ERR_INVALID_ARG;
+    *channel = (adc_channel_t)(gpio - 1);
+    return ESP_OK;
+}
+
 esp_err_t cjmcu4541_init(void) {
-    vTaskDelay(pdMS_TO_TICKS(10));
-    esp_err_t ret = cjmcu4541_write_reg(CJMCU4541_REG_POWER_MODE, CJMCU4541_WAKE_UP);
+    esp_err_t ret;
+
+    ret = gpio_to_adc_channel(CJMCU_RED_GPIO, &s_red_channel);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "CJMCU4541 wake-up falló: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "GPIO %d no es un canal ADC1 valido", CJMCU_RED_GPIO);
         return ret;
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
+    ret = gpio_to_adc_channel(CJMCU_NOX_GPIO, &s_nox_channel);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "GPIO %d no es un canal ADC1 valido", CJMCU_NOX_GPIO);
+        return ret;
+    }
+
+    adc_oneshot_unit_init_cfg_t unit_cfg = { .unit_id = ADC_UNIT_1 };
+    ret = adc_oneshot_new_unit(&unit_cfg, &s_adc_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "adc_oneshot_new_unit: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    adc_oneshot_chan_cfg_t chan_cfg = {
+        .atten = ADC_ATTEN_DB_11,
+        .bitwidth = ADC_BITWIDTH_12,
+    };
+    ret = adc_oneshot_config_channel(s_adc_handle, s_red_channel, &chan_cfg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "config RED channel: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    ret = adc_oneshot_config_channel(s_adc_handle, s_nox_channel, &chan_cfg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "config NOX channel: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    adc_cali_curve_fitting_config_t cali_cfg = {
+        .unit_id = ADC_UNIT_1,
+        .atten = ADC_ATTEN_DB_11,
+        .bitwidth = ADC_BITWIDTH_12,
+    };
+    ret = adc_cali_create_scheme_curve_fitting(&cali_cfg, &s_cali_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Calibracion ADC no disponible (%s), se usara conversion lineal", esp_err_to_name(ret));
+        s_cali_handle = NULL;
+    }
+
     s_calibrated = false;
-    s_r0_ox = 0;
-    s_r0_red = 0;
-    ESP_LOGI(TAG, "CJMCU-4541 (MiCS-4514) detectado en I2C");
+    s_r0_factor_red = 0.0f;
+    s_r0_factor_nox = 0.0f;
+
+    ESP_LOGI(TAG, "CJMCU-4541 (MiCS-4514) ADC init OK (RED=GPIO%d CH%d, NOX=GPIO%d CH%d)",
+             CJMCU_RED_GPIO, s_red_channel, CJMCU_NOX_GPIO, s_nox_channel);
+    return ESP_OK;
+}
+
+static esp_err_t read_channel_mv(adc_channel_t channel, int *out_mv) {
+    int raw;
+    esp_err_t ret = adc_oneshot_read(s_adc_handle, channel, &raw);
+    if (ret != ESP_OK) return ret;
+
+    if (s_cali_handle) {
+        return adc_cali_raw_to_voltage(s_cali_handle, raw, out_mv);
+    }
+    /* Conversion lineal como fallback (ADC_ATTEN_DB_11 ~ 0-3100 mV efectivos) */
+    *out_mv = (int)((float)raw / 4095.0f * 3100.0f);
     return ESP_OK;
 }
 
 esp_err_t cjmcu4541_is_connected(void) {
-    uint8_t buf[6];
-    return cjmcu4541_read_reg(CJMCU4541_REG_OX_RED_PWR, buf, sizeof(buf));
+    if (s_adc_handle == NULL) return ESP_ERR_INVALID_STATE;
+    int red_mv, nox_mv;
+    esp_err_t ret = read_channel_mv(s_red_channel, &red_mv);
+    if (ret != ESP_OK) return ret;
+    ret = read_channel_mv(s_nox_channel, &nox_mv);
+    if (ret != ESP_OK) return ret;
+    /* Si ambos canales estan saturados en 0 o al maximo, el sensor no esta conectado */
+    if ((red_mv < 50 && nox_mv < 50) || (red_mv > 3050 && nox_mv > 3050)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    return ESP_OK;
 }
 
 esp_err_t cjmcu4541_read_measurement(float *no2_ppm, float *co_ppm, float *nh3_ppm) {
-    uint8_t buf[6];
-    esp_err_t ret = cjmcu4541_read_reg(CJMCU4541_REG_OX_RED_PWR, buf, sizeof(buf));
+    if (s_adc_handle == NULL) return ESP_ERR_INVALID_STATE;
+
+    int red_mv, nox_mv;
+    esp_err_t ret = read_channel_mv(s_red_channel, &red_mv);
+    if (ret != ESP_OK) return ret;
+    ret = read_channel_mv(s_nox_channel, &nox_mv);
     if (ret != ESP_OK) return ret;
 
-    uint16_t ox   = (uint16_t)buf[0] << 8 | buf[1];
-    uint16_t red  = (uint16_t)buf[2] << 8 | buf[3];
-    uint16_t power = (uint16_t)buf[4] << 8 | buf[5];
+    /* Proteccion contra division por cero */
+    if (red_mv < 1) red_mv = 1;
+    if (nox_mv < 1) nox_mv = 1;
 
-    /* Evitar división por cero y valores absurdos. */
-    uint32_t diff_ox  = (power > ox)  ? (power - ox)  : 1u;
-    uint32_t diff_red = (power > red) ? (power - red) : 1u;
+    /* Rs_factor = (VCC - Vout) / Vout, proporcional a Rs del sensor */
+    float factor_red = (float)(VCC_MV - red_mv) / (float)red_mv;
+    float factor_nox = (float)(VCC_MV - nox_mv) / (float)nox_mv;
 
     if (!s_calibrated) {
-        s_r0_ox  = diff_ox;
-        s_r0_red = diff_red;
-        if (s_r0_ox == 0) s_r0_ox = 1;
-        if (s_r0_red == 0) s_r0_red = 1;
+        s_r0_factor_red = factor_red;
+        s_r0_factor_nox = factor_nox;
+        if (s_r0_factor_red < 0.001f) s_r0_factor_red = 0.001f;
+        if (s_r0_factor_nox < 0.001f) s_r0_factor_nox = 0.001f;
         s_calibrated = true;
-        /* Primera lectura como baseline; devolver ceros o valores bajos. */
+        ESP_LOGI(TAG, "Baseline: RED=%d mV (factor=%.3f), NOX=%d mV (factor=%.3f)",
+                 red_mv, s_r0_factor_red, nox_mv, s_r0_factor_nox);
         if (no2_ppm) *no2_ppm = 0.0f;
         if (co_ppm)  *co_ppm  = 0.0f;
         if (nh3_ppm) *nh3_ppm = 0.0f;
         return ESP_OK;
     }
 
-    float rs_r0_ox  = (float)diff_ox  / (float)s_r0_ox;
-    float rs_r0_red = (float)diff_red / (float)s_r0_red;
+    float rs_r0_red = factor_red / s_r0_factor_red;
+    float rs_r0_nox = factor_nox / s_r0_factor_nox;
 
-    if (no2_ppm) *no2_ppm = get_no2_ppm(rs_r0_ox);
+    if (no2_ppm) *no2_ppm = get_no2_ppm(rs_r0_nox);
     if (co_ppm)  *co_ppm  = get_co_ppm(rs_r0_red);
     if (nh3_ppm) *nh3_ppm = get_nh3_ppm(rs_r0_red);
 

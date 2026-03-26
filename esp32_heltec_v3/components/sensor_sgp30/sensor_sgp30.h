@@ -34,6 +34,21 @@ esp_err_t sgp30_is_connected(void);
  */
 esp_err_t sgp30_read_measurement(uint16_t *tvoc_ppb, uint16_t *eco2_ppm);
 
+/**
+ * Inicia tarea de fondo que ejecuta Measure_IAQ cada 1 s (requisito datasheet).
+ * Llamar después de sgp30_init().
+ * @return ESP_OK si la tarea se creó correctamente
+ */
+esp_err_t sgp30_start_polling(void);
+
+/**
+ * Obtiene la última medición cacheada por la tarea de polling.
+ * @param tvoc_ppb  TVOC en ppb (salida), puede ser NULL
+ * @param eco2_ppm  eCO2 en ppm (salida), puede ser NULL
+ * @return ESP_OK si hay datos válidos, ESP_ERR_NOT_FOUND si aún no hay medición
+ */
+esp_err_t sgp30_get_latest(uint16_t *tvoc_ppb, uint16_t *eco2_ppm);
+
 #ifdef __cplusplus
 }
 #endif

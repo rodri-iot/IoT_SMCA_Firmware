@@ -1,9 +1,10 @@
 /**
  * @file sensor_cjmcu4541.h
- * @brief Driver para CJMCU-4541 (MiCS-4514) - NO2, CO, NH3 vía I2C
+ * @brief Driver para CJMCU-4541 (MiCS-4514) - NO2, CO, NH3 via ADC analogico
  *
- * Mismo protocolo I2C que DFRobot Gravity MiCS-4514 (registros 0x04, 0x0a).
- * Dirección por defecto 0x75 (A0=0, A1=0); configurable en sensor_cjmcu4541.c.
+ * Version analogica: lee voltajes de los pines RED y NOX del modulo CJMCU-4541
+ * usando ADC1 del ESP32-S3. Los GPIOs se definen en config.h (CJMCU_RED_GPIO,
+ * CJMCU_NOX_GPIO). PRE debe conectarse a VCC para mantener el calentador activo.
  */
 
 #ifndef SENSOR_CJMCU4541_H
@@ -16,15 +17,15 @@ extern "C" {
 #endif
 
 /**
- * Inicializa el CJMCU-4541 (despierta el sensor, usa bus I2C ya inicializado).
- * Debe llamarse después de i2c_bus_init().
- * @return ESP_OK en éxito
+ * Inicializa el ADC para los canales RED y NOX del CJMCU-4541.
+ * Configura ADC1 con calibracion curve_fitting.
+ * @return ESP_OK en exito
  */
 esp_err_t cjmcu4541_init(void);
 
 /**
- * Comprueba si el CJMCU-4541 responde en el bus I2C.
- * @return ESP_OK si el sensor responde
+ * Comprueba si el CJMCU-4541 esta conectado (lecturas ADC en rango valido).
+ * @return ESP_OK si las lecturas no estan saturadas
  */
 esp_err_t cjmcu4541_is_connected(void);
 

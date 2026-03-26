@@ -78,8 +78,8 @@ static void sensor_simulation_task(void *pvParameters) {
 
         uint16_t tvoc_ppb = 0;
 #if USE_REAL_SGP30
-        if (sgp30_read_measurement(&tvoc_ppb, NULL) != ESP_OK) {
-            ESP_LOGW(TAG, "SGP30 no responde o fallo lectura (tvoc=0)");
+        if (sgp30_get_latest(&tvoc_ppb, NULL) != ESP_OK) {
+            ESP_LOGW(TAG, "SGP30 sin datos validos aun (tvoc=0)");
             tvoc_ppb = 0;
         }
 #else
